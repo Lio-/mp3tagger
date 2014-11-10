@@ -16,11 +16,12 @@
 #|     .
 #
 ####
-# ruby ./mp3tagger.rb
+# ruby ./mp3tagger.rb <artist directory 1> <artist directory 2> ...
 ####
 
 
 require 'taglib'
+require 'optparse'
 TEST_RUN = false
 
 def escape(data)
@@ -69,25 +70,40 @@ def set_tag(file, title:nil, artist:nil, album:nil, image_path:nil)
   end
 end
 
-def set_tag_in_current_dir(artist:nil, album:nil)
+def set_tag_in_current_dir(artist:nil, album:nil, options: {})
   files = get_mp3_list
   files.each do |file|
     title = get_base_filename(file)
+    title = title.gsub(/\d+[ \.]+/, '') if(options[:strip_number])
     set_tag(file, title: title, artist: artist, album: album)
   end
 end
 
-dirs = `ls -d */ |grep -v test`.split("\n").map{|d| d[0..-2]}
+#-- main
+#
+
+options = {}
+OptionParser.new do |opts|
+  opts.on("--strip-number", "strip the preceeding track number in the file name") do |strip|
+    options[:strip_number] = strip 
+  end
+  opts.on("-d", "--directories=DIR1,DIR2,..", Array, "directories to scan") do |d|
+    options[:directories] = d
+  end
+  opts.parse!(ARGV)
+end
+
+dirs = options[:directories].nil? ? `ls -d */ |grep -v test`.split("\n").map{|d| d[0..-2]} : options[:directories]
 dirs.each do |artist_dir|
   puts "====cd-ing #{artist_dir}"
   Dir.chdir(artist_dir){
-    set_tag_in_current_dir(artist: artist_dir)
+    set_tag_in_current_dir(artist: artist_dir, options: options)
 
     album_dirs = `ls -d */`.split("\n").map{|d| d[0..-2]}
     album_dirs.each do |album_dir|
       puts "====cd-ing #{album_dir}"
       Dir.chdir(album_dir){
-        set_tag_in_current_dir(artist: artist_dir, album: album_dir)
+        set_tag_in_current_dir(artist: artist_dir, album: album_dir, options: options)
       }
     end
   }
