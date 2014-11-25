@@ -70,11 +70,20 @@ def set_tag(file, title:nil, artist:nil, album:nil, image_path:nil)
   end
 end
 
+def show_result(file, title, album)
+    print ' ' * 4
+    print "- #{file}\n"
+    print ' ' * 8
+    print "title: \"#{title}\", album: \"#{album}\"\n"
+end
+
 def set_tag_in_current_dir(artist:nil, album:nil, options: {})
   files = get_mp3_list
   files.each do |file|
     title = get_base_filename(file)
     title = title.gsub(/\d+[ \.]+/, '') if(options[:strip_number])
+
+    show_result(file, title, album) unless (options[:silent]) 
     set_tag(file, title: title, artist: artist, album: album)
   end
 end
@@ -90,18 +99,20 @@ OptionParser.new do |opts|
   opts.on("-d", "--directories=DIR1,DIR2,..", Array, "directories to scan") do |d|
     options[:directories] = d
   end
+  opts.on("-s", "--silent", "show no commandline output") do |s|
+    options[:silent] = s
+  end
   opts.parse!(ARGV)
 end
 
 dirs = options[:directories].nil? ? `ls -d */ |grep -v test`.split("\n").map{|d| d[0..-2]} : options[:directories]
 dirs.each do |artist_dir|
-  puts "====cd-ing #{artist_dir}"
+  puts "Processing #{artist_dir} 's songs'.."
   Dir.chdir(artist_dir){
     set_tag_in_current_dir(artist: artist_dir, options: options)
 
-    album_dirs = `ls -d */`.split("\n").map{|d| d[0..-2]}
-    album_dirs.each do |album_dir|
-      puts "====cd-ing #{album_dir}"
+    Dir.glob('*/').each do |album_dir|
+      puts "Processing album \"#{album_dir}\""
       Dir.chdir(album_dir){
         set_tag_in_current_dir(artist: artist_dir, album: album_dir, options: options)
       }
