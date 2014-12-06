@@ -22,7 +22,6 @@
 
 require 'taglib'
 require 'optparse'
-TEST_RUN = false
 
 def escape(data)
   data.gsub(/'/, '\'"\'"\'')
@@ -42,27 +41,29 @@ def get_base_filename(filename)
   return $1
 end
 
-def set_tag(file, title:nil, artist:nil, album:nil, image_path:nil)
-  if(TEST_RUN)
-    puts "#{file} ->"
-    puts " " * 4 + "title: #{title}" unless title.nil?
-    puts " " * 4 + "artist: #{artist}" unless artist.nil?
-    puts " " * 4 + "album: #{album}" unless album.nil?
-    return 
-  end
+# option: {title:, artist:, album:, comment:, image_path:}
+def set_tag(file, options)
+  #puts "#{file} ->"
+  #puts " " * 4 + "title: #{options[:title]}" unless options[:title].nil?
+  #puts " " * 4 + "artist: #{options[:artist]}" unless options[:artist].nil?
+  #puts " " * 4 + "comment is cleared" unless options[:clear_comment]
+  #puts " " * 4 + "album: #{options[:album]}" unless options[:album].nil?
+
+  return if(options[:test_run])
 
   TagLib::MPEG::File.open(file) do |f|
     tag = f.id3v2_tag
-    tag.title = title unless title.nil?
-    tag.album = album unless album.nil?
-    tag.artist = artist unless artist.nil?
+    tag.title = options[:title] unless options[:title].nil?
+    tag.album = options[:album] unless options[:album].nil?
+    tag.artist = options[:artist] unless options[:artist].nil?
+    tag.comment = nil if options[:clear_comment]
 
-    unless image_path.nil?
+    unless options[:image_path].nil?
       apic = TagLib::ID3v2::AttachedPictureFrame.new
       apic.mime_type = "image/png"
       apic.description = "Cover"
       apic.type = TagLib::ID3v2::AttachedPictureFrame::FrontCover
-      apic.picture = File.open(path, 'rb') { |f| f.read }
+      apic.picture = File.open(options[:image_path], 'rb') { |f| f.read }
       tag.add_frame(apic)
     end
 
@@ -70,11 +71,12 @@ def set_tag(file, title:nil, artist:nil, album:nil, image_path:nil)
   end
 end
 
-def show_result(file, title, album)
-    print ' ' * 4
-    print "- #{file}\n"
-    print ' ' * 8
-    print "title: \"#{title}\", album: \"#{album}\"\n"
+def show_result(file, options)
+    puts ' ' * 4 + "- #{file}"
+    puts ' ' * 8 + "title: \"#{options[:title]}\"" unless options[:skip_title]
+    puts ' ' * 8 + "album: \"#{options[:album]}\"" unless options[:skip_album]
+    puts ' ' * 8 + "artist: \"#{options[:artist]}\"" unless options[:skip_artist]
+    puts " " * 8 + "comment is cleared" if options[:clear_comment]
 end
 
 def set_tag_in_current_dir(artist:nil, album:nil, options: {})
@@ -83,26 +85,58 @@ def set_tag_in_current_dir(artist:nil, album:nil, options: {})
     title = get_base_filename(file)
     title = title.gsub(/\d+[ \.]+/, '') if(options[:strip_number])
 
-    show_result(file, title, album) unless (options[:silent]) 
-    set_tag(file, title: title, artist: artist, album: album)
+
+    # compose options roughly
+    tag_options = {
+      title: options[:skip_title] ? nil : title,
+      artist: options[:skip_artist] ? nil : artist,
+      album: options[:skip_album] ? nil : album,
+    }.merge(options)
+
+    show_result(file, tag_options) unless (options[:silent]) 
+
+    set_tag(file, tag_options)
   end
 end
 
 #-- main
 #
 
+require 'pry-byebug'
+
 options = {}
 OptionParser.new do |opts|
-  opts.on("--strip-number", "strip the preceeding track number in the file name") do |strip|
-    options[:strip_number] = strip 
+  opts.on("--strip-number", "strip the preceeding track number in the file name") do |o|
+    options[:strip_number] = o
   end
-  opts.on("-d", "--directories=DIR1,DIR2,..", Array, "directories to scan") do |d|
-    options[:directories] = d
+  opts.on("-d", "--directories=DIR1,DIR2,..", Array, "directories to scan") do |o|
+    options[:directories] = o
   end
-  opts.on("-s", "--silent", "show no commandline output") do |s|
-    options[:silent] = s
+  opts.on("--silent", "show no commandline output") do |o|
+    options[:silent] = o
+  end
+  opts.on("-c", "--clear-comment", "clear comments on all files") do |o|
+    options[:clear_comment] = o
+  end
+  opts.on("-t", "--test-run", "shows output but don't actually change tag info") do |o|
+    options[:test_run] = o
+  end
+  opts.on("--skip-title", "don't change title") do |o|
+    options[:skip_title] = o
+  end
+  opts.on("--skip-album", "don't change album") do |o|
+    options[:skip_album] = o
+  end
+  opts.on("--skip-artist", "don't change artist") do |o|
+    options[:skip_artist] = o
   end
   opts.parse!(ARGV)
+end
+
+if(options[:test_run])
+  puts '=' * 20
+  puts 'THIS IS A TEST RUN'
+  puts '=' * 20
 end
 
 dirs = options[:directories].nil? ? `ls -d */ |grep -v test`.split("\n").map{|d| d[0..-2]} : options[:directories]
@@ -119,3 +153,4 @@ dirs.each do |artist_dir|
     end
   }
 end
+
