@@ -1,5 +1,5 @@
 # <Usage>
-# 
+#
 #|- mp3tagger.rb
 #|
 #|-Artist1
@@ -7,9 +7,9 @@
 #|  |- Album1
 #|  |  |- music1.mp3
 #|  .  .
-#|    
+#|
 #|-Artist2
-#|  |  
+#|  |
 #|  |- Album1
 #|  .  |- music1.mp3
 #|  .  |- music2.mp3
@@ -37,7 +37,7 @@ end
 
 def get_base_filename(filename)
   filename =~ /(.*)\.mp3/
-  raise "illegal file name #{filename}" if $1.nil? 
+  raise "illegal file name #{filename}" if $1.nil?
   return $1
 end
 
@@ -54,6 +54,7 @@ def set_tag(file, options)
   TagLib::MPEG::File.open(file) do |f|
     tag = f.id3v2_tag
     tag.title = options[:title] unless options[:title].nil?
+    binding.pry
     tag.album = options[:album] unless options[:album].nil?
     tag.artist = options[:artist] unless options[:artist].nil?
     tag.comment = nil if options[:clear_comment]
@@ -93,7 +94,7 @@ def set_tag_in_current_dir(artist:nil, album:nil, options: {})
       album: options[:skip_album] ? nil : album,
     }.merge(options)
 
-    show_result(file, tag_options) unless (options[:silent]) 
+    show_result(file, tag_options) unless (options[:silent])
 
     set_tag(file, tag_options)
   end
@@ -141,14 +142,16 @@ end
 
 dirs = options[:directories].nil? ? `ls -d */ |grep -v test`.split("\n").map{|d| d[0..-2]} : options[:directories]
 dirs.each do |artist_dir|
-  puts "Processing #{artist_dir} 's songs'.."
+  puts "Processing songs at [#{artist_dir}] .."
   Dir.chdir(artist_dir){
-    set_tag_in_current_dir(artist: artist_dir, options: options)
+    artist_name = artist_dir.split("/")[-1]
+    set_tag_in_current_dir(artist: artist_name, options: options)
 
     Dir.glob('*/').each do |album_dir|
       puts "Processing album \"#{album_dir}\""
       Dir.chdir(album_dir){
-        set_tag_in_current_dir(artist: artist_dir, album: album_dir, options: options)
+        album_name = album_dir[0..-2]
+        set_tag_in_current_dir(artist: artist_name, album: album_name, options: options)
       }
     end
   }
